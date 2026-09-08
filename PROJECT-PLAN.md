@@ -1,2 +1,2 @@
-commercial multi-restaurant food ordering platform
+commercial multi-restaurant food ordering platform 
  Build a commercial multi-restaurant food ordering platform that allows restaurants to manage their business from one centralized system. Goals: support unlimited restaurants, customer web app, restaurant admin panel, super admin panel, delivery driver app, pickup & delivery, online payments, multi-language, multi-currency. Development Phases: Phase1—user authentication, restaurant management, menu management. Phase 2—cart, checkout, order management. Phase 3—driver management, notifications, payment gateway. Phase 4—analytics, coupons, reviews, loyalty program
