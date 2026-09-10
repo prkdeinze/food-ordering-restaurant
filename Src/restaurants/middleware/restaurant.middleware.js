@@ -1,4 +1,20 @@
-e || !name.trim()) {
+const validateRestaurant = (req, res, next) => {
+  const {
+    ownerId,
+    name,
+    slug,
+    phone,
+    address
+  } = req.body;
+
+  if (!ownerId) {
+    return res.status(400).json({
+      success: false,
+      message: "Owner ID is required"
+    });
+  }
+
+  if (!name || !name.trim()) {
     return res.status(400).json({
       success: false,
       message: "Restaurant name is required"
@@ -103,4 +119,94 @@ const validateDeliverySettings = (req, res, next) => {
     deliveryFee,
     freeDeliveryMinimum,
     estimatedDeliveryMinutes,
-    estimatedPickup
+    estimatedPickupMinutes
+  } = req.body;
+
+  const numericFields = {
+    deliveryRadiusKm,
+    minimumOrderAmount,
+    deliveryFee,
+    freeDeliveryMinimum,
+    estimatedDeliveryMinutes,
+    estimatedPickupMinutes
+  };
+
+  for (const [field, value] of Object.entries(numericFields)) {
+    if (
+      value !== undefined &&
+      value !== null &&
+      (typeof value !== "number" || value < 0)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: `${field} must be a positive number`
+      });
+    }
+  }
+
+  next();
+};
+
+const validateCoordinates = (req, res, next) => {
+  const { address } = req.body;
+
+  if (!address) {
+    return next();
+  }
+
+  const { latitude, longitude } = address;
+
+  if (
+    latitude !== undefined &&
+    (typeof latitude !== "number" ||
+      latitude < -90 ||
+      latitude > 90)
+  ) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid latitude"
+    });
+  }
+
+  if (
+    longitude !== undefined &&
+    (typeof longitude !== "number" ||
+      longitude < -180 ||
+      longitude > 180)
+  ) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid longitude"
+    });
+  }
+
+  next();
+};
+
+const validateRating = (req, res, next) => {
+  const { rating } = req.body;
+
+  if (
+    rating !== undefined &&
+    (typeof rating !== "number" ||
+      rating < 0 ||
+      rating > 5)
+  ) {
+    return res.status(400).json({
+      success: false,
+      message: "Rating must be between 0 and 5"
+    });
+  }
+
+  next();
+};
+
+module.exports = {
+  validateRestaurant,
+  validateRestaurantEmail,
+  validateRestaurantId,
+  validateRestaurantStatus,
+  validateDeliverySettings,
+  validateCoordinates,
+  validateRating
+};
