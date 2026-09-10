@@ -115,4 +115,117 @@ const restaurantModel = {
     },
 
     deliveryEnabled: {
-      type: "
+      type: "boolean",
+      default: true
+    },
+
+    pickupEnabled: {
+      type: "boolean",
+      default: true
+    },
+
+    deliveryRadiusKm: {
+      type: "number",
+      required: false,
+      default: 10
+    },
+
+    minimumOrderAmount: {
+      type: "number",
+      required: false,
+      default: 0
+    },
+
+    deliveryFee: {
+      type: "number",
+      required: false,
+      default: 0
+    },
+
+    freeDeliveryMinimum: {
+      type: "number",
+      required: false
+    },
+
+    estimatedDeliveryMinutes: {
+      type: "number",
+      required: false
+    },
+
+    estimatedPickupMinutes: {
+      type: "number",
+      required: false
+    },
+
+    currency: {
+      type: "string",
+      required: true,
+      default: "EUR"
+    },
+
+    timezone: {
+      type: "string",
+      required: true,
+      default: "Europe/Brussels"
+    },
+
+    taxNumber: {
+      type: "string",
+      required: false
+    },
+
+    acceptsCash: {
+      type: "boolean",
+      default: true
+    },
+
+    acceptsOnlinePayment: {
+      type: "boolean",
+      default: true
+    },
+
+    status: {
+      type: "string",
+      required: true,
+      default: "pending",
+      allowedValues: [
+        "pending",
+        "active",
+        "inactive",
+        "suspended"
+      ]
+    },
+
+    isOpen: {
+      type: "boolean",
+      default: false
+    },
+
+    isVerified: {
+      type: "boolean",
+      default: false
+    },
+
+    rating: {
+      type: "number",
+      default: 0
+    },
+
+    totalReviews: {
+      type: "number",
+      default: 0
+    },
+
+    createdAt: {
+      type: "date",
+      required: true
+    },
+
+    updatedAt: {
+      type: "date",
+      required: true
+    }
+  }
+};
+
+module.exports = restaurantModel;
