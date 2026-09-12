@@ -1,6 +1,6 @@
 const menuService = require("../services/menu.service");
 
-// Create a new menu item
+// Create menu item
 const createMenuItem = async (req, res) => {
   try {
     const menuItem = await menuService.createMenuItem(req.body);
@@ -36,7 +36,7 @@ const getAllMenuItems = async (req, res) => {
   }
 };
 
-// Get one menu item by ID
+// Get menu item by ID
 const getMenuItemById = async (req, res) => {
   try {
     const menuItem = await menuService.getMenuItemById(
@@ -55,7 +55,7 @@ const getMenuItemById = async (req, res) => {
   }
 };
 
-// Update a menu item
+// Update menu item
 const updateMenuItem = async (req, res) => {
   try {
     const menuItem = await menuService.updateMenuItem(
@@ -76,7 +76,7 @@ const updateMenuItem = async (req, res) => {
   }
 };
 
-// Change menu item availability
+// Update menu item availability
 const updateMenuItemAvailability = async (req, res) => {
   try {
     const menuItem =
@@ -100,7 +100,7 @@ const updateMenuItemAvailability = async (req, res) => {
   }
 };
 
-// Delete a menu item
+// Delete menu item
 const deleteMenuItem = async (req, res) => {
   try {
     await menuService.deleteMenuItem(req.params.id);
@@ -112,4 +112,16 @@ const deleteMenuItem = async (req, res) => {
   } catch (error) {
     return res.status(error.statusCode || 500).json({
       success: false,
-      message: error.message || "Failed to
+      message: error.message || "Failed to delete menu item",
+    });
+  }
+};
+
+module.exports = {
+  createMenuItem,
+  getAllMenuItems,
+  getMenuItemById,
+  updateMenuItem,
+  updateMenuItemAvailability,
+  deleteMenuItem,
+};
