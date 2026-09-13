@@ -1,80 +1,95 @@
-const jwt = require("jsonwebtoken");
+const validateRegisterData = (userData = {}) => {
+  const errors = [];
 
-const authMiddleware = (req, res, next) => {
-  try {
-    const authHeader = req.headers.authorization;
+  const name =
+    typeof userData.name === "string"
+      ? userData.name.trim()
+      : "";
 
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return res.status(401).json({
-        success: false,
-        message: "Authentication token is required",
-      });
-    }
+  const email =
+    typeof userData.email === "string"
+      ? userData.email.trim().toLowerCase()
+      : "";
 
-    const token = authHeader.split(" ")[1];
+  const password =
+    typeof userData.password === "string"
+      ? userData.password
+      : "";
 
-    if (!token) {
-      return res.status(401).json({
-        success: false,
-        message: "Authentication token is required",
-      });
-    }
-
-    const decoded = jwt.verify(
-      token,
-      process.env.JWT_SECRET
-    );
-
-    req.user = {
-      id: decoded.id,
-      email: decoded.email,
-      role: decoded.role,
-    };
-
-    next();
-  } catch (error) {
-    if (error.name === "TokenExpiredError") {
-      return res.status(401).json({
-        success: false,
-        message: "Token has expired",
-      });
-    }
-
-    if (error.name === "JsonWebTokenError") {
-      return res.status(401).json({
-        success: false,
-        message: "Invalid token",
-      });
-    }
-
-    return res.status(500).json({
-      success: false,
-      message: "Authentication failed",
-    });
+  if (!name) {
+    errors.push("Name is required");
   }
-};
 
-const requireRole = (...allowedRoles) => {
-  return (req, res, next) => {
-    if (!req.user) {
-      return res.status(401).json({
-        success: false,
-        message: "Unauthorized",
-      });
-    }
+  if (!email) {
+    errors.push("Email is required");
+  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    errors.push("Email is invalid");
+  }
 
-    if (!allowedRoles.includes(req.user.role)) {
-      return res.status(403).json({
-        success: false,
-        message: "Access denied",
-      });
-    }
+  if (!password) {
+    errors.push("Password is required");
+  } else if (password.length < 8) {
+    errors.push("Password must be at least 8 characters");
+  }
 
-    next();
+  return {
+    isValid: errors.length === 0,
+    errors,
+    data: {
+      name,
+      email,
+      password,
+    },
   };
 };
 
+const validateLoginData = (credentials = {}) => {
+  const errors = [];
+
+  const email =
+    typeof credentials.email === "string"
+      ? credentials.email.trim().toLowerCase()
+      : "";
+
+  const password =
+    typeof credentials.password === "string"
+      ? credentials.password
+      : "";
+
+  if (!email) {
+    errors.push("Email is required");
+  }
+
+  if (!password) {
+    errors.push("Password is required");
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors,
+    data: {
+      email,
+      password,
+    },
+  };
+};
+
+const sanitizeUser = (user) => {
+  if (!user) {
+    return null;
+  }
+
+  const {
+    passwordHash,
+    passwordSalt,
+    ...safeUser
+  } = user;
+
+  return safeUser;
+};
+
 module.exports = {
-  authMiddleware,
-  requireRole,
+  validateRegisterData,
+  validateLoginData,
+  sanitizeUser,
 };
