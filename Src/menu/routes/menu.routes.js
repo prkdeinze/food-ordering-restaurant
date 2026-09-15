@@ -10,6 +10,7 @@ const {
 } = require("../controllers/menu.controller");
 
 const {
+  validateRestaurantId,
   validateMenuItem,
   validateMenuItemId,
   validateAvailabilityUpdate,
@@ -21,14 +22,12 @@ const router = express.Router();
 |--------------------------------------------------------------------------
 | Multi-Restaurant Menu Routes
 |--------------------------------------------------------------------------
-|
-| Every menu operation belongs to a specific restaurant.
-|
 */
 
 // Create a menu item for a restaurant
 router.post(
   "/restaurant/:restaurantId",
+  validateRestaurantId,
   validateMenuItem,
   createMenuItem
 );
@@ -36,12 +35,14 @@ router.post(
 // Get all menu items for a restaurant
 router.get(
   "/restaurant/:restaurantId",
+  validateRestaurantId,
   getAllMenuItems
 );
 
-// Get one menu item from a restaurant
+// Get one menu item by ID
 router.get(
   "/restaurant/:restaurantId/:id",
+  validateRestaurantId,
   validateMenuItemId,
   getMenuItemById
 );
@@ -49,6 +50,7 @@ router.get(
 // Update a menu item
 router.put(
   "/restaurant/:restaurantId/:id",
+  validateRestaurantId,
   validateMenuItemId,
   validateMenuItem,
   updateMenuItem
@@ -57,6 +59,7 @@ router.put(
 // Update menu item availability
 router.patch(
   "/restaurant/:restaurantId/:id/availability",
+  validateRestaurantId,
   validateMenuItemId,
   validateAvailabilityUpdate,
   updateMenuItemAvailability
@@ -65,6 +68,7 @@ router.patch(
 // Delete a menu item
 router.delete(
   "/restaurant/:restaurantId/:id",
+  validateRestaurantId,
   validateMenuItemId,
   deleteMenuItem
 );
