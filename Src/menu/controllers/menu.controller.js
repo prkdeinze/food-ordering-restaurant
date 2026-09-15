@@ -1,9 +1,23 @@
 const menuService = require("../services/menu.service");
 
+// Get restaurant ID from request
+const getRestaurantId = (req) => {
+  return (
+    req.params.restaurantId ||
+    req.body.restaurantId ||
+    req.query.restaurantId
+  );
+};
+
 // Create menu item
 const createMenuItem = async (req, res) => {
   try {
-    const menuItem = await menuService.createMenuItem(req.body);
+    const restaurantId = getRestaurantId(req);
+
+    const menuItem = await menuService.createMenuItem({
+      ...req.body,
+      restaurantId,
+    });
 
     return res.status(201).json({
       success: true,
@@ -18,10 +32,13 @@ const createMenuItem = async (req, res) => {
   }
 };
 
-// Get all menu items
+// Get all menu items for one restaurant
 const getAllMenuItems = async (req, res) => {
   try {
-    const menuItems = await menuService.getAllMenuItems();
+    const restaurantId = getRestaurantId(req);
+
+    const menuItems =
+      await menuService.getAllMenuItems(restaurantId);
 
     return res.status(200).json({
       success: true,
@@ -36,11 +53,14 @@ const getAllMenuItems = async (req, res) => {
   }
 };
 
-// Get menu item by ID
+// Get one menu item
 const getMenuItemById = async (req, res) => {
   try {
+    const restaurantId = getRestaurantId(req);
+
     const menuItem = await menuService.getMenuItemById(
-      req.params.id
+      req.params.id,
+      restaurantId
     );
 
     return res.status(200).json({
@@ -58,8 +78,11 @@ const getMenuItemById = async (req, res) => {
 // Update menu item
 const updateMenuItem = async (req, res) => {
   try {
+    const restaurantId = getRestaurantId(req);
+
     const menuItem = await menuService.updateMenuItem(
       req.params.id,
+      restaurantId,
       req.body
     );
 
@@ -79,15 +102,19 @@ const updateMenuItem = async (req, res) => {
 // Update menu item availability
 const updateMenuItemAvailability = async (req, res) => {
   try {
+    const restaurantId = getRestaurantId(req);
+
     const menuItem =
       await menuService.updateMenuItemAvailability(
         req.params.id,
+        restaurantId,
         req.body.isAvailable
       );
 
     return res.status(200).json({
       success: true,
-      message: "Menu item availability updated successfully",
+      message:
+        "Menu item availability updated successfully",
       data: menuItem,
     });
   } catch (error) {
@@ -103,7 +130,12 @@ const updateMenuItemAvailability = async (req, res) => {
 // Delete menu item
 const deleteMenuItem = async (req, res) => {
   try {
-    await menuService.deleteMenuItem(req.params.id);
+    const restaurantId = getRestaurantId(req);
+
+    await menuService.deleteMenuItem(
+      req.params.id,
+      restaurantId
+    );
 
     return res.status(200).json({
       success: true,
