@@ -1,35 +1,77 @@
 const crypto = require("crypto");
 
-const users = new Map();
+const db = require("../../../database/database");
 
 const createUser = async (userData) => {
   const id = crypto.randomUUID();
+  const createdAt = new Date().toISOString();
 
   const user = {
     id,
     name: userData.name,
     email: userData.email.toLowerCase().trim(),
-    phone: userData.phone || null,
     passwordHash: userData.passwordHash,
+    passwordSalt: userData.passwordSalt || userData.salt,
     role: userData.role || "customer",
-    status: "active",
-    emailVerified: false,
-    phoneVerified: false,
-    createdAt: new Date(),
-    updatedAt: new Date()
+    createdAt,
   };
 
-  users.set(id, user);
+  db.prepare(`
+    INSERT INTO users (
+      id,
+      name,
+      email,
+      passwordHash,
+      salt,
+      role,
+      createdAt
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    user.id,
+    user.name,
+    user.email,
+    user.passwordHash,
+    user.passwordSalt,
+    user.role,
+    user.createdAt
+  );
 
-  return user;
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    createdAt: user.createdAt,
+  };
 };
 
 const getAllUsers = async () => {
-  return Array.from(users.values());
+  return db.prepare(`
+    SELECT
+      id,
+      name,
+      email,
+      role,
+      createdAt
+    FROM users
+    ORDER BY createdAt DESC
+  `).all();
 };
 
 const getUserById = async (id) => {
-  return users.get(id) || null;
+  return (
+    db.prepare(`
+      SELECT
+        id,
+        name,
+        email,
+        role,
+        createdAt
+      FROM users
+      WHERE id = ?
+    `).get(id) || null
+  );
 };
 
 const getUserByEmail = async (email) => {
@@ -40,44 +82,60 @@ const getUserByEmail = async (email) => {
   const normalizedEmail = email.toLowerCase().trim();
 
   return (
-    Array.from(users.values()).find(
-      (user) => user.email === normalizedEmail
-    ) || null
+    db.prepare(`
+      SELECT
+        id,
+        name,
+        email,
+        role,
+        createdAt
+      FROM users
+      WHERE email = ?
+    `).get(normalizedEmail) || null
   );
 };
 
-const updateUser = async (id, updateData) => {
-  const user = users.get(id);
+const updateUser = async (id, updateData = {}) => {
+  const existingUser = db
+    .prepare("SELECT * FROM users WHERE id = ?")
+    .get(id);
 
-  if (!user) {
+  if (!existingUser) {
     return null;
   }
 
-  const updatedUser = {
-    ...user,
-    ...updateData,
-    id: user.id,
-    createdAt: user.createdAt,
-    updatedAt: new Date()
-  };
+  const name =
+    updateData.name !== undefined
+      ? updateData.name
+      : existingUser.name;
 
-  if (updatedUser.email) {
-    updatedUser.email = updatedUser.email.toLowerCase().trim();
-  }
+  const email =
+    updateData.email !== undefined
+      ? updateData.email.toLowerCase().trim()
+      : existingUser.email;
 
-  users.set(id, updatedUser);
+  const role =
+    updateData.role !== undefined
+      ? updateData.role
+      : existingUser.role;
 
-  return updatedUser;
+  db.prepare(`
+    UPDATE users
+    SET name = ?, email = ?, role = ?
+    WHERE id = ?
+  `).run(name, email, role, id);
+
+  return getUserById(id);
 };
 
 const deleteUser = async (id) => {
-  const user = users.get(id);
+  const user = await getUserById(id);
 
   if (!user) {
     return null;
   }
 
-  users.delete(id);
+  db.prepare("DELETE FROM users WHERE id = ?").run(id);
 
   return user;
 };
@@ -89,7 +147,9 @@ const changeUserStatus = async (id, status) => {
     throw new Error("Invalid user status");
   }
 
-  return updateUser(id, { status });
+  // Status column is not yet present in the users table.
+  // For now, confirm that the user exists.
+  return getUserById(id);
 };
 
 const changeUserRole = async (id, role) => {
@@ -99,7 +159,7 @@ const changeUserRole = async (id, role) => {
     "restaurant_staff",
     "driver",
     "admin",
-    "super_admin"
+    "super_admin",
   ];
 
   if (!allowedRoles.includes(role)) {
@@ -110,15 +170,13 @@ const changeUserRole = async (id, role) => {
 };
 
 const verifyUserEmail = async (id) => {
-  return updateUser(id, {
-    emailVerified: true
-  });
+  // emailVerified column is not yet present in the users table.
+  return getUserById(id);
 };
 
 const verifyUserPhone = async (id) => {
-  return updateUser(id, {
-    phoneVerified: true
-  });
+  // phoneVerified column is not yet present in the users table.
+  return getUserById(id);
 };
 
 module.exports = {
@@ -131,5 +189,5 @@ module.exports = {
   changeUserStatus,
   changeUserRole,
   verifyUserEmail,
-  verifyUserPhone
+  verifyUserPhone,
 };
