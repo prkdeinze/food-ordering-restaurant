@@ -9,73 +9,114 @@ const createError = (message, statusCode = 500) => {
 };
 
 const createMenuItem = async (data = {}) => {
+  if (!data.restaurantId) {
+    throw createError("Restaurant ID is required", 400);
+  }
+
   if (!data.name) {
     throw createError("Menu item name is required", 400);
   }
 
+  const restaurantId = data.restaurantId.trim();
   const normalizedName = data.name.trim().toLowerCase();
 
   const existingItem = Array.from(menuItems.values()).find(
-    (item) => item.name.toLowerCase() === normalizedName
+    (item) =>
+      item.restaurantId === restaurantId &&
+      item.name.toLowerCase() === normalizedName
   );
 
   if (existingItem) {
     throw createError(
-      "Menu item with this name already exists",
+      "Menu item with this name already exists for this restaurant",
       409
     );
   }
 
-  const menuItem = new MenuModel(data);
+  const menuItem = new MenuModel({
+    ...data,
+    restaurantId,
+  });
 
   menuItems.set(menuItem.id, menuItem);
 
   return menuItem.toJSON();
 };
 
-const getAllMenuItems = async () => {
-  return Array.from(menuItems.values()).map((item) =>
-    item.toJSON()
-  );
+const getAllMenuItems = async (restaurantId) => {
+  if (!restaurantId) {
+    throw createError("Restaurant ID is required", 400);
+  }
+
+  return Array.from(menuItems.values())
+    .filter((item) => item.restaurantId === restaurantId)
+    .map((item) => item.toJSON());
 };
 
-const getMenuItemById = async (id) => {
+const getMenuItemById = async (id, restaurantId) => {
+  if (!restaurantId) {
+    throw createError("Restaurant ID is required", 400);
+  }
+
   const menuItem = menuItems.get(id);
 
-  if (!menuItem) {
+  if (
+    !menuItem ||
+    menuItem.restaurantId !== restaurantId
+  ) {
     throw createError("Menu item not found", 404);
   }
 
   return menuItem.toJSON();
 };
 
-const updateMenuItem = async (id, data = {}) => {
+const updateMenuItem = async (
+  id,
+  restaurantId,
+  data = {}
+) => {
+  if (!restaurantId) {
+    throw createError("Restaurant ID is required", 400);
+  }
+
   const menuItem = menuItems.get(id);
 
-  if (!menuItem) {
+  if (
+    !menuItem ||
+    menuItem.restaurantId !== restaurantId
+  ) {
     throw createError("Menu item not found", 404);
   }
 
   if (data.name) {
-    const normalizedName = data.name.trim().toLowerCase();
+    const normalizedName = data.name
+      .trim()
+      .toLowerCase();
 
     const duplicateItem = Array.from(
       menuItems.values()
     ).find(
       (item) =>
+        item.restaurantId === restaurantId &&
         item.name.toLowerCase() === normalizedName &&
         item.id !== id
     );
 
     if (duplicateItem) {
       throw createError(
-        "Menu item with this name already exists",
+        "Menu item with this name already exists for this restaurant",
         409
       );
     }
   }
 
-  menuItem.update(data);
+  const safeData = {
+    ...data,
+  };
+
+  delete safeData.restaurantId;
+
+  menuItem.update(safeData);
 
   menuItems.set(menuItem.id, menuItem);
 
@@ -84,11 +125,19 @@ const updateMenuItem = async (id, data = {}) => {
 
 const updateMenuItemAvailability = async (
   id,
+  restaurantId,
   isAvailable
 ) => {
+  if (!restaurantId) {
+    throw createError("Restaurant ID is required", 400);
+  }
+
   const menuItem = menuItems.get(id);
 
-  if (!menuItem) {
+  if (
+    !menuItem ||
+    menuItem.restaurantId !== restaurantId
+  ) {
     throw createError("Menu item not found", 404);
   }
 
@@ -103,10 +152,20 @@ const updateMenuItemAvailability = async (
   return menuItem.toJSON();
 };
 
-const deleteMenuItem = async (id) => {
+const deleteMenuItem = async (
+  id,
+  restaurantId
+) => {
+  if (!restaurantId) {
+    throw createError("Restaurant ID is required", 400);
+  }
+
   const menuItem = menuItems.get(id);
 
-  if (!menuItem) {
+  if (
+    !menuItem ||
+    menuItem.restaurantId !== restaurantId
+  ) {
     throw createError("Menu item not found", 404);
   }
 
