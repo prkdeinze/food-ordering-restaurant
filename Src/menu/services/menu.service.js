@@ -1,177 +1,190 @@
-const MenuModel = require("../models/menu.model");
+const { randomUUID } = require("crypto");
+const db = require("../../../database/database");
 
-const menuItems = new Map();
+// Convert SQLite row into API-friendly object
+const formatMenuItem = (row) => {
+  if (!row) return null;
 
-const createError = (message, statusCode = 500) => {
-  const error = new Error(message);
-  error.statusCode = statusCode;
-  return error;
+  return {
+    ...row,
+    isAvailable: Boolean(row.isAvailable),
+  };
 };
 
-const createMenuItem = async (data = {}) => {
-  if (!data.restaurantId) {
-    throw createError("Restaurant ID is required", 400);
-  }
+// Create menu item
+const createMenuItem = async (restaurantId, data) => {
+  const now = new Date().toISOString();
 
-  if (!data.name) {
-    throw createError("Menu item name is required", 400);
-  }
-
-  const restaurantId = data.restaurantId.trim();
-  const normalizedName = data.name.trim().toLowerCase();
-
-  const existingItem = Array.from(menuItems.values()).find(
-    (item) =>
-      item.restaurantId === restaurantId &&
-      item.name.toLowerCase() === normalizedName
-  );
-
-  if (existingItem) {
-    throw createError(
-      "Menu item with this name already exists for this restaurant",
-      409
-    );
-  }
-
-  const menuItem = new MenuModel({
-    ...data,
+  const item = {
+    id: randomUUID(),
     restaurantId,
-  });
-
-  menuItems.set(menuItem.id, menuItem);
-
-  return menuItem.toJSON();
-};
-
-const getAllMenuItems = async (restaurantId) => {
-  if (!restaurantId) {
-    throw createError("Restaurant ID is required", 400);
-  }
-
-  return Array.from(menuItems.values())
-    .filter((item) => item.restaurantId === restaurantId)
-    .map((item) => item.toJSON());
-};
-
-const getMenuItemById = async (id, restaurantId) => {
-  if (!restaurantId) {
-    throw createError("Restaurant ID is required", 400);
-  }
-
-  const menuItem = menuItems.get(id);
-
-  if (
-    !menuItem ||
-    menuItem.restaurantId !== restaurantId
-  ) {
-    throw createError("Menu item not found", 404);
-  }
-
-  return menuItem.toJSON();
-};
-
-const updateMenuItem = async (
-  id,
-  restaurantId,
-  data = {}
-) => {
-  if (!restaurantId) {
-    throw createError("Restaurant ID is required", 400);
-  }
-
-  const menuItem = menuItems.get(id);
-
-  if (
-    !menuItem ||
-    menuItem.restaurantId !== restaurantId
-  ) {
-    throw createError("Menu item not found", 404);
-  }
-
-  if (data.name) {
-    const normalizedName = data.name
-      .trim()
-      .toLowerCase();
-
-    const duplicateItem = Array.from(
-      menuItems.values()
-    ).find(
-      (item) =>
-        item.restaurantId === restaurantId &&
-        item.name.toLowerCase() === normalizedName &&
-        item.id !== id
-    );
-
-    if (duplicateItem) {
-      throw createError(
-        "Menu item with this name already exists for this restaurant",
-        409
-      );
-    }
-  }
-
-  const safeData = {
-    ...data,
+    name: data.name,
+    description: data.description || "",
+    price: data.price,
+    category: data.category || "",
+    image: data.image || "",
+    isAvailable:
+      data.isAvailable === undefined ? true : data.isAvailable,
+    createdAt: now,
+    updatedAt: now,
   };
 
-  delete safeData.restaurantId;
+  db.prepare(`
+    INSERT INTO menu_items (
+      id,
+      restaurantId,
+      name,
+      description,
+      price,
+      category,
+      image,
+      isAvailable,
+      createdAt,
+      updatedAt
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    item.id,
+    item.restaurantId,
+    item.name,
+    item.description,
+    item.price,
+    item.category,
+    item.image,
+    item.isAvailable ? 1 : 0,
+    item.createdAt,
+    item.updatedAt
+  );
 
-  menuItem.update(safeData);
-
-  menuItems.set(menuItem.id, menuItem);
-
-  return menuItem.toJSON();
+  return item;
 };
 
+// Get all menu items for one restaurant
+const getAllMenuItems = async (restaurantId) => {
+  const rows = db
+    .prepare(`
+      SELECT *
+      FROM menu_items
+      WHERE restaurantId = ?
+      ORDER BY createdAt DESC
+    `)
+    .all(restaurantId);
+
+  return rows.map(formatMenuItem);
+};
+
+// Get one menu item
+const getMenuItemById = async (restaurantId, id) => {
+  const row = db
+    .prepare(`
+      SELECT *
+      FROM menu_items
+      WHERE restaurantId = ? AND id = ?
+    `)
+    .get(restaurantId, id);
+
+  return formatMenuItem(row);
+};
+
+// Update menu item
+const updateMenuItem = async (restaurantId, id, data) => {
+  const existing = await getMenuItemById(restaurantId, id);
+
+  if (!existing) {
+    return null;
+  }
+
+  const updatedItem = {
+    ...existing,
+    name: data.name,
+    description:
+      data.description !== undefined
+        ? data.description
+        : existing.description,
+    price: data.price,
+    category:
+      data.category !== undefined
+        ? data.category
+        : existing.category,
+    image:
+      data.image !== undefined
+        ? data.image
+        : existing.image,
+    isAvailable:
+      data.isAvailable !== undefined
+        ? data.isAvailable
+        : existing.isAvailable,
+    updatedAt: new Date().toISOString(),
+  };
+
+  db.prepare(`
+    UPDATE menu_items
+    SET
+      name = ?,
+      description = ?,
+      price = ?,
+      category = ?,
+      image = ?,
+      isAvailable = ?,
+      updatedAt = ?
+    WHERE restaurantId = ? AND id = ?
+  `).run(
+    updatedItem.name,
+    updatedItem.description,
+    updatedItem.price,
+    updatedItem.category,
+    updatedItem.image,
+    updatedItem.isAvailable ? 1 : 0,
+    updatedItem.updatedAt,
+    restaurantId,
+    id
+  );
+
+  return updatedItem;
+};
+
+// Update availability only
 const updateMenuItemAvailability = async (
-  id,
   restaurantId,
+  id,
   isAvailable
 ) => {
-  if (!restaurantId) {
-    throw createError("Restaurant ID is required", 400);
+  const existing = await getMenuItemById(restaurantId, id);
+
+  if (!existing) {
+    return null;
   }
 
-  const menuItem = menuItems.get(id);
+  const updatedAt = new Date().toISOString();
 
-  if (
-    !menuItem ||
-    menuItem.restaurantId !== restaurantId
-  ) {
-    throw createError("Menu item not found", 404);
-  }
+  db.prepare(`
+    UPDATE menu_items
+    SET isAvailable = ?, updatedAt = ?
+    WHERE restaurantId = ? AND id = ?
+  `).run(
+    isAvailable ? 1 : 0,
+    updatedAt,
+    restaurantId,
+    id
+  );
 
-  try {
-    menuItem.updateAvailability(isAvailable);
-  } catch (error) {
-    throw createError(error.message, 400);
-  }
-
-  menuItems.set(menuItem.id, menuItem);
-
-  return menuItem.toJSON();
+  return getMenuItemById(restaurantId, id);
 };
 
-const deleteMenuItem = async (
-  id,
-  restaurantId
-) => {
-  if (!restaurantId) {
-    throw createError("Restaurant ID is required", 400);
+// Delete menu item
+const deleteMenuItem = async (restaurantId, id) => {
+  const existing = await getMenuItemById(restaurantId, id);
+
+  if (!existing) {
+    return null;
   }
 
-  const menuItem = menuItems.get(id);
+  db.prepare(`
+    DELETE FROM menu_items
+    WHERE restaurantId = ? AND id = ?
+  `).run(restaurantId, id);
 
-  if (
-    !menuItem ||
-    menuItem.restaurantId !== restaurantId
-  ) {
-    throw createError("Menu item not found", 404);
-  }
-
-  menuItems.delete(id);
-
-  return true;
+  return existing;
 };
 
 module.exports = {
