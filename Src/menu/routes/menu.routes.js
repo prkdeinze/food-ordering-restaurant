@@ -19,49 +19,52 @@ const router = express.Router();
 
 /*
 |--------------------------------------------------------------------------
-| Menu Routes
+| Multi-Restaurant Menu Routes
 |--------------------------------------------------------------------------
+|
+| Every menu operation belongs to a specific restaurant.
+|
 */
 
-// Create a new menu item
+// Create a menu item for a restaurant
 router.post(
-  "/",
+  "/restaurant/:restaurantId",
   validateMenuItem,
   createMenuItem
 );
 
-// Get all menu items
+// Get all menu items for a restaurant
 router.get(
-  "/",
+  "/restaurant/:restaurantId",
   getAllMenuItems
 );
 
-// Get one menu item by ID
+// Get one menu item from a restaurant
 router.get(
-  "/:id",
+  "/restaurant/:restaurantId/:id",
   validateMenuItemId,
   getMenuItemById
 );
 
-// Update complete menu item
+// Update a menu item
 router.put(
-  "/:id",
+  "/restaurant/:restaurantId/:id",
   validateMenuItemId,
   validateMenuItem,
   updateMenuItem
 );
 
-// Update only availability
+// Update menu item availability
 router.patch(
-  "/:id/availability",
+  "/restaurant/:restaurantId/:id/availability",
   validateMenuItemId,
   validateAvailabilityUpdate,
   updateMenuItemAvailability
 );
 
-// Delete menu item
+// Delete a menu item
 router.delete(
-  "/:id",
+  "/restaurant/:restaurantId/:id",
   validateMenuItemId,
   deleteMenuItem
 );
