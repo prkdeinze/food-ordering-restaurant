@@ -1,3 +1,21 @@
+const validateRestaurantId = (req, res, next) => {
+  const { restaurantId } = req.params;
+
+  if (
+    !restaurantId ||
+    typeof restaurantId !== "string" ||
+    !restaurantId.trim()
+  ) {
+    return res.status(400).json({
+      success: false,
+      message: "Valid restaurant ID is required",
+    });
+  }
+
+  req.params.restaurantId = restaurantId.trim();
+
+  next();
+};
 
 const validateMenuItem = (req, res, next) => {
   const {
@@ -69,6 +87,10 @@ const validateMenuItem = (req, res, next) => {
     req.body.category = category.trim();
   }
 
+  if (typeof image === "string") {
+    req.body.image = image.trim();
+  }
+
   next();
 };
 
@@ -81,6 +103,8 @@ const validateMenuItemId = (req, res, next) => {
       message: "Valid menu item ID is required",
     });
   }
+
+  req.params.id = id.trim();
 
   next();
 };
@@ -99,6 +123,7 @@ const validateAvailabilityUpdate = (req, res, next) => {
 };
 
 module.exports = {
+  validateRestaurantId,
   validateMenuItem,
   validateMenuItemId,
   validateAvailabilityUpdate,
