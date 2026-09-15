@@ -3,6 +3,7 @@ const crypto = require("crypto");
 class MenuModel {
   constructor({
     id,
+    restaurantId,
     name,
     description = "",
     price = 0,
@@ -13,6 +14,11 @@ class MenuModel {
     updatedAt,
   }) {
     this.id = id || crypto.randomUUID();
+
+    this.restaurantId =
+      typeof restaurantId === "string"
+        ? restaurantId.trim()
+        : "";
 
     this.name =
       typeof name === "string"
@@ -102,6 +108,7 @@ class MenuModel {
   toJSON() {
     return {
       id: this.id,
+      restaurantId: this.restaurantId,
       name: this.name,
       description: this.description,
       price: this.price,
