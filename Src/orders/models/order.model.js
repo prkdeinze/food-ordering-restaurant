@@ -13,10 +13,8 @@ class OrderModel {
     paymentStatus = "pending",
     status = "pending",
     notes = "",
-    subtotal,
     deliveryFee = 0,
     discount = 0,
-    total,
     createdAt,
     updatedAt,
   } = {}) {
@@ -67,29 +65,15 @@ class OrderModel {
         ? notes.trim()
         : "";
 
-    this.deliveryFee =
-      typeof deliveryFee === "number" &&
-      Number.isFinite(deliveryFee)
-        ? deliveryFee
-        : 0;
+    this.deliveryFee = this.toValidNumber(deliveryFee);
+    this.discount = this.toValidNumber(discount);
 
-    this.discount =
-      typeof discount === "number" &&
-      Number.isFinite(discount)
-        ? discount
-        : 0;
+    // Always calculate subtotal from order items.
+    // Never trust subtotal sent by the client.
+    this.subtotal = this.calculateSubtotal();
 
-    this.subtotal =
-      typeof subtotal === "number" &&
-      Number.isFinite(subtotal)
-        ? subtotal
-        : this.calculateSubtotal();
-
-    this.total =
-      typeof total === "number" &&
-      Number.isFinite(total)
-        ? total
-        : this.calculateTotal();
+    // Always calculate final total on the server.
+    this.total = this.calculateTotal();
 
     this.createdAt =
       createdAt || new Date().toISOString();
@@ -98,34 +82,29 @@ class OrderModel {
       updatedAt || new Date().toISOString();
   }
 
-  generateOrderNumber() {
-    const timestamp = Date.now().toString();
+  toValidNumber(value) {
+    const number = Number(value);
 
-    const random = crypto
-      .randomBytes(2)
-      .toString("hex")
-      .toUpperCase();
+    if (!Number.isFinite(number) || number < 0) {
+      return 0;
+    }
 
-    return `ORD-${timestamp}-${random}`;
+    return number;
   }
 
-  normalizeItems(items = []) {
+  normalizeItems(items) {
     if (!Array.isArray(items)) {
       return [];
     }
 
     return items.map((item = {}) => {
-      const quantity =
-        typeof item.quantity === "number" &&
-        Number.isFinite(item.quantity)
-          ? item.quantity
-          : 0;
+      const quantity = this.toValidNumber(
+        item.quantity
+      );
 
-      const price =
-        typeof item.price === "number" &&
-        Number.isFinite(item.price)
-          ? item.price
-          : 0;
+      const price = this.toValidNumber(
+        item.price
+      );
 
       return {
         menuItemId: item.menuItemId || "",
@@ -138,6 +117,17 @@ class OrderModel {
         total: price * quantity,
       };
     });
+  }
+
+  generateOrderNumber() {
+    const timestamp = Date.now().toString();
+
+    const random = crypto
+      .randomBytes(2)
+      .toString("hex")
+      .toUpperCase();
+
+    return `ORD-${timestamp}-${random}`;
   }
 
   calculateSubtotal() {
@@ -166,7 +156,9 @@ class OrderModel {
 
   update(data = {}) {
     if (Array.isArray(data.items)) {
-      this.items = this.normalizeItems(data.items);
+      this.items = this.normalizeItems(
+        data.items
+      );
     }
 
     if (typeof data.customerName === "string") {
@@ -202,18 +194,14 @@ class OrderModel {
       this.notes = data.notes.trim();
     }
 
-    if (
-      typeof data.deliveryFee === "number" &&
-      Number.isFinite(data.deliveryFee)
-    ) {
-      this.deliveryFee = data.deliveryFee;
+    if (data.deliveryFee !== undefined) {
+      this.deliveryFee =
+        this.toValidNumber(data.deliveryFee);
     }
 
-    if (
-      typeof data.discount === "number" &&
-      Number.isFinite(data.discount)
-    ) {
-      this.discount = data.discount;
+    if (data.discount !== undefined) {
+      this.discount =
+        this.toValidNumber(data.discount);
     }
 
     this.recalculateTotals();
