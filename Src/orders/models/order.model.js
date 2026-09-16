@@ -1,4 +1,3 @@
-
 const crypto = require("crypto");
 
 class OrderModel {
@@ -8,40 +7,25 @@ class OrderModel {
     items = [],
     customerName,
     customerPhone,
-    orderType,
+    orderType = "pickup",
     deliveryAddress = "",
     paymentMethod = "cash",
     paymentStatus = "pending",
     status = "pending",
     notes = "",
-    subtotal = 0,
+    subtotal,
     deliveryFee = 0,
     discount = 0,
-    total = 0,
+    total,
     createdAt,
     updatedAt,
-  }) {
+  } = {}) {
     this.id = id || crypto.randomUUID();
 
     this.orderNumber =
       orderNumber || this.generateOrderNumber();
 
-    this.items = Array.isArray(items)
-      ? items.map((item) => ({
-          menuItemId: item.menuItemId,
-          name: item.name || "",
-          quantity: item.quantity,
-          price:
-            typeof item.price === "number"
-              ? item.price
-              : 0,
-          total:
-            typeof item.price === "number" &&
-            typeof item.quantity === "number"
-              ? item.price * item.quantity
-              : 0,
-        }))
-      : [];
+    this.items = this.normalizeItems(items);
 
     this.customerName =
       typeof customerName === "string"
@@ -83,23 +67,27 @@ class OrderModel {
         ? notes.trim()
         : "";
 
-    this.subtotal =
-      typeof subtotal === "number"
-        ? subtotal
-        : this.calculateSubtotal();
-
     this.deliveryFee =
-      typeof deliveryFee === "number"
+      typeof deliveryFee === "number" &&
+      Number.isFinite(deliveryFee)
         ? deliveryFee
         : 0;
 
     this.discount =
-      typeof discount === "number"
+      typeof discount === "number" &&
+      Number.isFinite(discount)
         ? discount
         : 0;
 
+    this.subtotal =
+      typeof subtotal === "number" &&
+      Number.isFinite(subtotal)
+        ? subtotal
+        : this.calculateSubtotal();
+
     this.total =
-      typeof total === "number" && total > 0
+      typeof total === "number" &&
+      Number.isFinite(total)
         ? total
         : this.calculateTotal();
 
@@ -112,6 +100,7 @@ class OrderModel {
 
   generateOrderNumber() {
     const timestamp = Date.now().toString();
+
     const random = crypto
       .randomBytes(2)
       .toString("hex")
@@ -120,20 +109,42 @@ class OrderModel {
     return `ORD-${timestamp}-${random}`;
   }
 
-  calculateSubtotal() {
-    return this.items.reduce((sum, item) => {
-      const price =
-        typeof item.price === "number"
-          ? item.price
-          : 0;
+  normalizeItems(items = []) {
+    if (!Array.isArray(items)) {
+      return [];
+    }
 
+    return items.map((item = {}) => {
       const quantity =
-        typeof item.quantity === "number"
+        typeof item.quantity === "number" &&
+        Number.isFinite(item.quantity)
           ? item.quantity
           : 0;
 
-      return sum + price * quantity;
-    }, 0);
+      const price =
+        typeof item.price === "number" &&
+        Number.isFinite(item.price)
+          ? item.price
+          : 0;
+
+      return {
+        menuItemId: item.menuItemId || "",
+        name:
+          typeof item.name === "string"
+            ? item.name.trim()
+            : "",
+        quantity,
+        price,
+        total: price * quantity,
+      };
+    });
+  }
+
+  calculateSubtotal() {
+    return this.items.reduce(
+      (sum, item) => sum + item.total,
+      0
+    );
   }
 
   calculateTotal() {
@@ -154,23 +165,9 @@ class OrderModel {
   }
 
   update(data = {}) {
-    const allowedFields = [
-      "items",
-      "customerName",
-      "customerPhone",
-      "orderType",
-      "deliveryAddress",
-      "paymentMethod",
-      "notes",
-      "deliveryFee",
-      "discount",
-    ];
-
-    allowedFields.forEach((field) => {
-      if (data[field] !== undefined) {
-        this[field] = data[field];
-      }
-    });
+    if (Array.isArray(data.items)) {
+      this.items = this.normalizeItems(data.items);
+    }
 
     if (typeof data.customerName === "string") {
       this.customerName =
@@ -205,30 +202,31 @@ class OrderModel {
       this.notes = data.notes.trim();
     }
 
-    if (Array.isArray(data.items)) {
-      this.items = data.items.map((item) => ({
-        menuItemId: item.menuItemId,
-        name: item.name || "",
-        quantity: item.quantity,
-        price:
-          typeof item.price === "number"
-            ? item.price
-            : 0,
-        total:
-          typeof item.price === "number" &&
-          typeof item.quantity === "number"
-            ? item.price * item.quantity
-            : 0,
-      }));
+    if (
+      typeof data.deliveryFee === "number" &&
+      Number.isFinite(data.deliveryFee)
+    ) {
+      this.deliveryFee = data.deliveryFee;
+    }
+
+    if (
+      typeof data.discount === "number" &&
+      Number.isFinite(data.discount)
+    ) {
+      this.discount = data.discount;
     }
 
     this.recalculateTotals();
-    this.updatedAt = new Date().toISOString();
 
     return this;
   }
 
   updateStatus(status) {
+    const normalizedStatus =
+      typeof status === "string"
+        ? status.trim().toLowerCase()
+        : "";
+
     const allowedStatuses = [
       "pending",
       "confirmed",
@@ -239,17 +237,26 @@ class OrderModel {
       "cancelled",
     ];
 
-    if (!allowedStatuses.includes(status)) {
+    if (
+      !allowedStatuses.includes(
+        normalizedStatus
+      )
+    ) {
       throw new Error("Invalid order status");
     }
 
-    this.status = status;
+    this.status = normalizedStatus;
     this.updatedAt = new Date().toISOString();
 
     return this;
   }
 
   updatePaymentStatus(paymentStatus) {
+    const normalizedStatus =
+      typeof paymentStatus === "string"
+        ? paymentStatus.trim().toLowerCase()
+        : "";
+
     const allowedPaymentStatuses = [
       "pending",
       "paid",
@@ -259,13 +266,15 @@ class OrderModel {
 
     if (
       !allowedPaymentStatuses.includes(
-        paymentStatus
+        normalizedStatus
       )
     ) {
-      throw new Error("Invalid payment status");
+      throw new Error(
+        "Invalid payment status"
+      );
     }
 
-    this.paymentStatus = paymentStatus;
+    this.paymentStatus = normalizedStatus;
     this.updatedAt = new Date().toISOString();
 
     return this;
