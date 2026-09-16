@@ -3,10 +3,12 @@ const crypto = require("crypto");
 class OrderModel {
   constructor({
     id,
+    restaurantId,
     orderNumber,
     items = [],
     customerName,
     customerPhone,
+    customerEmail = "",
     orderType = "pickup",
     deliveryAddress = "",
     paymentMethod = "cash",
@@ -19,6 +21,11 @@ class OrderModel {
     updatedAt,
   } = {}) {
     this.id = id || crypto.randomUUID();
+
+    this.restaurantId =
+      typeof restaurantId === "string"
+        ? restaurantId.trim()
+        : "";
 
     this.orderNumber =
       orderNumber || this.generateOrderNumber();
@@ -33,6 +40,11 @@ class OrderModel {
     this.customerPhone =
       typeof customerPhone === "string"
         ? customerPhone.trim()
+        : "";
+
+    this.customerEmail =
+      typeof customerEmail === "string"
+        ? customerEmail.trim().toLowerCase()
         : "";
 
     this.orderType =
@@ -65,14 +77,14 @@ class OrderModel {
         ? notes.trim()
         : "";
 
-    this.deliveryFee = this.toValidNumber(deliveryFee);
-    this.discount = this.toValidNumber(discount);
+    this.deliveryFee =
+      this.toValidNumber(deliveryFee);
 
-    // Always calculate subtotal from order items.
-    // Never trust subtotal sent by the client.
+    this.discount =
+      this.toValidNumber(discount);
+
+    // Always calculate prices on the server
     this.subtotal = this.calculateSubtotal();
-
-    // Always calculate final total on the server.
     this.total = this.calculateTotal();
 
     this.createdAt =
@@ -98,13 +110,11 @@ class OrderModel {
     }
 
     return items.map((item = {}) => {
-      const quantity = this.toValidNumber(
-        item.quantity
-      );
+      const quantity =
+        this.toValidNumber(item.quantity);
 
-      const price = this.toValidNumber(
-        item.price
-      );
+      const price =
+        this.toValidNumber(item.price);
 
       return {
         menuItemId: item.menuItemId || "",
@@ -138,12 +148,12 @@ class OrderModel {
   }
 
   calculateTotal() {
-    const calculatedTotal =
+    return Math.max(
+      0,
       this.subtotal +
-      this.deliveryFee -
-      this.discount;
-
-    return Math.max(0, calculatedTotal);
+        this.deliveryFee -
+        this.discount
+    );
   }
 
   recalculateTotals() {
@@ -156,10 +166,12 @@ class OrderModel {
 
   update(data = {}) {
     if (Array.isArray(data.items)) {
-      this.items = this.normalizeItems(
-        data.items
-      );
+      this.items =
+        this.normalizeItems(data.items);
     }
+
+    // restaurantId is deliberately NOT editable here.
+    // An order must remain attached to its restaurant.
 
     if (typeof data.customerName === "string") {
       this.customerName =
@@ -169,6 +181,11 @@ class OrderModel {
     if (typeof data.customerPhone === "string") {
       this.customerPhone =
         data.customerPhone.trim();
+    }
+
+    if (typeof data.customerEmail === "string") {
+      this.customerEmail =
+        data.customerEmail.trim().toLowerCase();
     }
 
     if (typeof data.orderType === "string") {
@@ -290,10 +307,12 @@ class OrderModel {
   toJSON() {
     return {
       id: this.id,
+      restaurantId: this.restaurantId,
       orderNumber: this.orderNumber,
       items: this.items,
       customerName: this.customerName,
       customerPhone: this.customerPhone,
+      customerEmail: this.customerEmail,
       orderType: this.orderType,
       deliveryAddress: this.deliveryAddress,
       paymentMethod: this.paymentMethod,
