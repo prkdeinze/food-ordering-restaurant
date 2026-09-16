@@ -8,7 +8,6 @@ class OrderModel {
     items = [],
     customerName,
     customerPhone,
-    customerEmail = "",
     orderType = "pickup",
     deliveryAddress = "",
     paymentMethod = "cash",
@@ -21,12 +20,7 @@ class OrderModel {
     updatedAt,
   } = {}) {
     this.id = id || crypto.randomUUID();
-
-    this.restaurantId =
-      typeof restaurantId === "string"
-        ? restaurantId.trim()
-        : "";
-
+this.restaurantId = restaurantId || "";
     this.orderNumber =
       orderNumber || this.generateOrderNumber();
 
@@ -40,11 +34,6 @@ class OrderModel {
     this.customerPhone =
       typeof customerPhone === "string"
         ? customerPhone.trim()
-        : "";
-
-    this.customerEmail =
-      typeof customerEmail === "string"
-        ? customerEmail.trim().toLowerCase()
         : "";
 
     this.orderType =
@@ -77,14 +66,14 @@ class OrderModel {
         ? notes.trim()
         : "";
 
-    this.deliveryFee =
-      this.toValidNumber(deliveryFee);
+    this.deliveryFee = this.toValidNumber(deliveryFee);
+    this.discount = this.toValidNumber(discount);
 
-    this.discount =
-      this.toValidNumber(discount);
-
-    // Prices are always calculated on the server.
+    // Always calculate subtotal from order items.
+    // Never trust subtotal sent by the client.
     this.subtotal = this.calculateSubtotal();
+
+    // Always calculate final total on the server.
     this.total = this.calculateTotal();
 
     this.createdAt =
@@ -110,23 +99,20 @@ class OrderModel {
     }
 
     return items.map((item = {}) => {
-      const quantity =
-        this.toValidNumber(item.quantity);
+      const quantity = this.toValidNumber(
+        item.quantity
+      );
 
-      const price =
-        this.toValidNumber(item.price);
+      const price = this.toValidNumber(
+        item.price
+      );
 
       return {
-        menuItemId:
-          typeof item.menuItemId === "string"
-            ? item.menuItemId.trim()
-            : "",
-
+        menuItemId: item.menuItemId || "",
         name:
           typeof item.name === "string"
             ? item.name.trim()
             : "",
-
         quantity,
         price,
         total: price * quantity,
@@ -153,12 +139,12 @@ class OrderModel {
   }
 
   calculateTotal() {
-    const total =
+    const calculatedTotal =
       this.subtotal +
       this.deliveryFee -
       this.discount;
 
-    return Math.max(0, total);
+    return Math.max(0, calculatedTotal);
   }
 
   recalculateTotals() {
@@ -171,12 +157,10 @@ class OrderModel {
 
   update(data = {}) {
     if (Array.isArray(data.items)) {
-      this.items =
-        this.normalizeItems(data.items);
+      this.items = this.normalizeItems(
+        data.items
+      );
     }
-
-    // restaurantId cannot be changed after
-    // the order has been created.
 
     if (typeof data.customerName === "string") {
       this.customerName =
@@ -186,11 +170,6 @@ class OrderModel {
     if (typeof data.customerPhone === "string") {
       this.customerPhone =
         data.customerPhone.trim();
-    }
-
-    if (typeof data.customerEmail === "string") {
-      this.customerEmail =
-        data.customerEmail.trim().toLowerCase();
     }
 
     if (typeof data.orderType === "string") {
@@ -317,7 +296,6 @@ class OrderModel {
       items: this.items,
       customerName: this.customerName,
       customerPhone: this.customerPhone,
-      customerEmail: this.customerEmail,
       orderType: this.orderType,
       deliveryAddress: this.deliveryAddress,
       paymentMethod: this.paymentMethod,
