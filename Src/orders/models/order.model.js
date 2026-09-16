@@ -83,7 +83,7 @@ class OrderModel {
     this.discount =
       this.toValidNumber(discount);
 
-    // Always calculate prices on the server
+    // Prices are always calculated on the server.
     this.subtotal = this.calculateSubtotal();
     this.total = this.calculateTotal();
 
@@ -117,11 +117,16 @@ class OrderModel {
         this.toValidNumber(item.price);
 
       return {
-        menuItemId: item.menuItemId || "",
+        menuItemId:
+          typeof item.menuItemId === "string"
+            ? item.menuItemId.trim()
+            : "",
+
         name:
           typeof item.name === "string"
             ? item.name.trim()
             : "",
+
         quantity,
         price,
         total: price * quantity,
@@ -148,12 +153,12 @@ class OrderModel {
   }
 
   calculateTotal() {
-    return Math.max(
-      0,
+    const total =
       this.subtotal +
-        this.deliveryFee -
-        this.discount
-    );
+      this.deliveryFee -
+      this.discount;
+
+    return Math.max(0, total);
   }
 
   recalculateTotals() {
@@ -170,8 +175,8 @@ class OrderModel {
         this.normalizeItems(data.items);
     }
 
-    // restaurantId is deliberately NOT editable here.
-    // An order must remain attached to its restaurant.
+    // restaurantId cannot be changed after
+    // the order has been created.
 
     if (typeof data.customerName === "string") {
       this.customerName =
