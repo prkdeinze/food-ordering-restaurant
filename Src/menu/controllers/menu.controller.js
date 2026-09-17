@@ -14,10 +14,7 @@ const createMenuItem = async (req, res) => {
   try {
     const restaurantId = getRestaurantId(req);
 
-    const menuItem = await menuService.createMenuItem({
-      ...req.body,
-      restaurantId,
-    });
+    const menuItem = await menuService.createMenuItem(restaurantId, req.body);
 
     return res.status(201).json({
       success: true,
@@ -59,9 +56,16 @@ const getMenuItemById = async (req, res) => {
     const restaurantId = getRestaurantId(req);
 
     const menuItem = await menuService.getMenuItemById(
-      req.params.id,
-      restaurantId
+      restaurantId,
+      req.params.id
     );
+
+    if (!menuItem) {
+      return res.status(404).json({
+        success: false,
+        message: "Menu item not found",
+      });
+    }
 
     return res.status(200).json({
       success: true,
@@ -81,8 +85,8 @@ const updateMenuItem = async (req, res) => {
     const restaurantId = getRestaurantId(req);
 
     const menuItem = await menuService.updateMenuItem(
-      req.params.id,
       restaurantId,
+      req.params.id,
       req.body
     );
 
@@ -106,8 +110,8 @@ const updateMenuItemAvailability = async (req, res) => {
 
     const menuItem =
       await menuService.updateMenuItemAvailability(
-        req.params.id,
         restaurantId,
+        req.params.id,
         req.body.isAvailable
       );
 

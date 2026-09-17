@@ -83,7 +83,7 @@ const getMenuItemById = async (restaurantId, id) => {
     `)
     .get(restaurantId, id);
 
-  return formatMenuItem(row);
+  return row ? formatMenuItem(row) : null;
 };
 
 // Update menu item
