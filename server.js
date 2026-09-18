@@ -20,7 +20,7 @@ const paymentRoutes = require("./Src/payments/routes/payment.routes");
 const restaurantRoutes = require("./Src/restaurants/routes/restaurant.routes");
 const reviewRoutes = require("./Src/reviews/routes/review.routes");
 const userRoutes = require("./Src/users/routes/user.routes");
-
+const supplierRoutes = require("./Src/suppliers/routes/supplier.routes");
 // API Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/coupons", couponRoutes);
@@ -32,7 +32,7 @@ app.use("/api/payments", paymentRoutes);
 app.use("/api/restaurants", restaurantRoutes);
 app.use("/api/reviews", reviewRoutes);
 app.use("/api/users", userRoutes);
-
+app.use("/api/suppliers", supplierRoutes);
 // Home Route
 app.get("/", (req, res) => {
   res.status(200).json({
