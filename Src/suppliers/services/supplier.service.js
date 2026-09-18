@@ -1,310 +1,158 @@
-// Src/suppliers/services/supplier.service.js
-
-const crypto = require("crypto");
 const Supplier = require("../models/supplier.model");
 
-/*
-|--------------------------------------------------------------------------
-| Supplier Service
-|--------------------------------------------------------------------------
-| Business logic for suppliers.
-|
-| Designed for a multi-supplier marketplace where:
-| - We do not need to own supplier stock.
-| - Customers order through our platform.
-| - Supplier fulfils/delivers the product.
-| - Platform can keep its margin.
-| - Supplier is responsible for its products and fulfilment.
-|--------------------------------------------------------------------------
-*/
+// Temporary in-memory storage.
+// Later this storage layer can be replaced with SQLite/database
+// without changing the controller/routes API.
+const suppliers = new Map();
 
-const createId = () => {
-  if (typeof crypto.randomUUID === "function") {
-    return crypto.randomUUID();
-  }
-
-  return crypto.randomBytes(16).toString("hex");
+const createError = (message, statusCode = 500) => {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  return error;
 };
 
-const normalizeText = (value) => {
-  if (typeof value !== "string") return value;
-  return value.trim();
-};
+const normalizeEmail = (email = "") =>
+  String(email).trim().toLowerCase();
 
-const normalizeEmail = (email) => {
-  if (!email) return "";
-  return String(email).trim().toLowerCase();
-};
-
-const normalizeCountry = (country) => {
-  if (!country) return "";
-  return String(country).trim().toUpperCase();
-};
-
-const normalizeStatus = (status) => {
-  const allowedStatuses = [
-    "pending",
-    "active",
-    "inactive",
-    "suspended",
-    "rejected",
-  ];
-
-  const normalized = String(status || "pending")
+const normalizeSlug = (value = "") =>
+  String(value)
     .trim()
-    .toLowerCase();
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 
-  if (!allowedStatuses.includes(normalized)) {
-    const error = new Error(
-      `Invalid supplier status. Allowed: ${allowedStatuses.join(", ")}`
-    );
-    error.statusCode = 400;
-    throw error;
-  }
+const findSupplierInstance = (id) => {
+  const supplier = suppliers.get(id);
 
-  return normalized;
-};
-
-const validateSupplierData = (data = {}, isUpdate = false) => {
-  if (!isUpdate && !normalizeText(data.name)) {
-    const error = new Error("Supplier name is required");
-    error.statusCode = 400;
-    throw error;
-  }
-
-  if (data.email !== undefined && data.email !== "") {
-    const email = normalizeEmail(data.email);
-    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-    if (!emailPattern.test(email)) {
-      const error = new Error("Invalid supplier email");
-      error.statusCode = 400;
-      throw error;
-    }
-  }
-
-  if (data.commissionRate !== undefined) {
-    const commissionRate = Number(data.commissionRate);
-
-    if (
-      Number.isNaN(commissionRate) ||
-      commissionRate < 0 ||
-      commissionRate > 100
-    ) {
-      const error = new Error(
-        "commissionRate must be a number between 0 and 100"
-      );
-      error.statusCode = 400;
-      throw error;
-    }
-  }
-
-  if (data.paymentTermsDays !== undefined) {
-    const paymentTermsDays = Number(data.paymentTermsDays);
-
-    if (
-      !Number.isInteger(paymentTermsDays) ||
-      paymentTermsDays < 0
-    ) {
-      const error = new Error(
-        "paymentTermsDays must be a non-negative integer"
-      );
-      error.statusCode = 400;
-      throw error;
-    }
-  }
-
-  if (data.status !== undefined) {
-    normalizeStatus(data.status);
-  }
-};
-
-const prepareSupplierData = (data = {}, existing = {}) => {
-  const supplier = {
-    ...existing,
-    ...data,
-  };
-
-  if (data.name !== undefined) {
-    supplier.name = normalizeText(data.name);
-  }
-
-  if (data.companyName !== undefined) {
-    supplier.companyName = normalizeText(data.companyName);
-  }
-
-  if (data.contactPerson !== undefined) {
-    supplier.contactPerson = normalizeText(data.contactPerson);
-  }
-
-  if (data.email !== undefined) {
-    supplier.email = normalizeEmail(data.email);
-  }
-
-  if (data.phone !== undefined) {
-    supplier.phone = normalizeText(data.phone);
-  }
-
-  if (data.country !== undefined) {
-    supplier.country = normalizeCountry(data.country);
-  }
-
-  if (data.status !== undefined) {
-    supplier.status = normalizeStatus(data.status);
-  }
-
-  if (data.commissionRate !== undefined) {
-    supplier.commissionRate = Number(data.commissionRate);
-  }
-
-  if (data.paymentTermsDays !== undefined) {
-    supplier.paymentTermsDays = Number(data.paymentTermsDays);
-  }
-
-  if (data.isActive !== undefined) {
-    supplier.isActive = Boolean(data.isActive);
+  if (!supplier) {
+    throw createError("Supplier not found", 404);
   }
 
   return supplier;
 };
 
+const ensureUniqueEmail = (email, excludeId = null) => {
+  const normalizedEmail = normalizeEmail(email);
 
-/*
-|--------------------------------------------------------------------------
-| CREATE SUPPLIER
-|--------------------------------------------------------------------------
-*/
+  if (!normalizedEmail) {
+    return;
+  }
 
-const createSupplier = async (supplierData) => {
-  validateSupplierData(supplierData);
-
-  const email = normalizeEmail(supplierData.email);
-
-  if (email && typeof Supplier.findByEmail === "function") {
-    const existingSupplier = await Supplier.findByEmail(email);
-
-    if (existingSupplier) {
-      const error = new Error(
-        "A supplier with this email already exists"
+  for (const supplier of suppliers.values()) {
+    if (
+      supplier.id !== excludeId &&
+      normalizeEmail(supplier.email) === normalizedEmail
+    ) {
+      throw createError(
+        "A supplier with this email already exists",
+        409
       );
-      error.statusCode = 409;
-      throw error;
     }
   }
-
-  const now = new Date().toISOString();
-
-  const supplier = prepareSupplierData(
-    {
-      id: createId(),
-
-      name: supplierData.name,
-      companyName: supplierData.companyName || "",
-      contactPerson: supplierData.contactPerson || "",
-
-      email,
-      phone: supplierData.phone || "",
-
-      vatNumber: supplierData.vatNumber || "",
-      companyNumber: supplierData.companyNumber || "",
-
-      address: supplierData.address || "",
-      city: supplierData.city || "",
-      postalCode: supplierData.postalCode || "",
-      country: supplierData.country || "BE",
-
-      website: supplierData.website || "",
-
-      status: supplierData.status || "pending",
-      isActive:
-        supplierData.isActive !== undefined
-          ? supplierData.isActive
-          : true,
-
-      // Platform commercial relationship
-      commissionRate:
-        supplierData.commissionRate !== undefined
-          ? supplierData.commissionRate
-          : 0,
-
-      paymentTermsDays:
-        supplierData.paymentTermsDays !== undefined
-          ? supplierData.paymentTermsDays
-          : 0,
-
-      currency: supplierData.currency || "EUR",
-
-      // Supplier fulfilment settings
-      handlesDelivery:
-        supplierData.handlesDelivery !== undefined
-          ? Boolean(supplierData.handlesDelivery)
-          : true,
-
-      handlesReturns:
-        supplierData.handlesReturns !== undefined
-          ? Boolean(supplierData.handlesReturns)
-          : true,
-
-      notes: supplierData.notes || "",
-
-      createdAt: now,
-      updatedAt: now,
-    },
-    {}
-  );
-
-  if (typeof Supplier.create !== "function") {
-    throw new Error(
-      "Supplier model does not implement create()"
-    );
-  }
-
-  return Supplier.create(supplier);
 };
 
+const ensureUniqueSlug = (slug, excludeId = null) => {
+  if (!slug) {
+    return;
+  }
 
-/*
-|--------------------------------------------------------------------------
-| GET ALL SUPPLIERS
-|--------------------------------------------------------------------------
-*/
+  for (const supplier of suppliers.values()) {
+    if (
+      supplier.id !== excludeId &&
+      supplier.slug === slug
+    ) {
+      throw createError(
+        "A supplier with this slug already exists",
+        409
+      );
+    }
+  }
+};
 
-const getAllSuppliers = async (filters = {}) => {
-  if (typeof Supplier.findAll !== "function") {
-    throw new Error(
-      "Supplier model does not implement findAll()"
+// --------------------------------------------------
+// Create supplier
+// --------------------------------------------------
+const createSupplier = async (data = {}) => {
+  if (
+    typeof data.businessName !== "string" ||
+    !data.businessName.trim()
+  ) {
+    throw createError(
+      "Supplier business name is required",
+      400
     );
   }
 
-  const suppliers = await Supplier.findAll();
+  ensureUniqueEmail(data.email);
 
-  let result = Array.isArray(suppliers) ? suppliers : [];
+  const slug =
+    normalizeSlug(data.slug) ||
+    normalizeSlug(data.businessName);
+
+  ensureUniqueSlug(slug);
+
+  const supplier = new Supplier({
+    ...data,
+    businessName: data.businessName.trim(),
+    email: normalizeEmail(data.email),
+    slug,
+  });
+
+  suppliers.set(supplier.id, supplier);
+
+  return supplier.toJSON();
+};
+
+// --------------------------------------------------
+// Get all suppliers
+// --------------------------------------------------
+const getAllSuppliers = async (filters = {}) => {
+  let result = Array.from(suppliers.values());
 
   if (filters.status) {
-    const status = String(filters.status).toLowerCase();
+    const status = String(filters.status)
+      .trim()
+      .toLowerCase();
 
     result = result.filter(
-      (supplier) =>
-        String(supplier.status || "").toLowerCase() === status
+      (supplier) => supplier.status === status
     );
   }
 
   if (filters.country) {
-    const country = normalizeCountry(filters.country);
+    const country = String(filters.country)
+      .trim()
+      .toLowerCase();
 
     result = result.filter(
       (supplier) =>
-        normalizeCountry(supplier.country) === country
+        String(supplier.address?.country || "")
+          .trim()
+          .toLowerCase() === country ||
+        String(supplier.address?.countryCode || "")
+          .trim()
+          .toLowerCase() === country
     );
   }
 
   if (filters.isActive !== undefined) {
-    const active =
+    const isActive =
       filters.isActive === true ||
       filters.isActive === "true";
 
     result = result.filter(
-      (supplier) => Boolean(supplier.isActive) === active
+      (supplier) => supplier.isActive === isActive
+    );
+  }
+
+  if (filters.isVerified !== undefined) {
+    const isVerified =
+      filters.isVerified === true ||
+      filters.isVerified === "true";
+
+    result = result.filter(
+      (supplier) =>
+        supplier.isVerified === isVerified
     );
   }
 
@@ -315,13 +163,13 @@ const getAllSuppliers = async (filters = {}) => {
 
     result = result.filter((supplier) => {
       const searchable = [
-        supplier.name,
-        supplier.companyName,
-        supplier.contactPerson,
+        supplier.businessName,
+        supplier.legalName,
         supplier.email,
         supplier.phone,
-        supplier.city,
-        supplier.country,
+        supplier.contactPerson?.name,
+        supplier.address?.city,
+        supplier.address?.country,
       ]
         .filter(Boolean)
         .join(" ")
@@ -331,193 +179,124 @@ const getAllSuppliers = async (filters = {}) => {
     });
   }
 
-  return result;
+  return result
+    .sort(
+      (a, b) =>
+        new Date(b.createdAt) -
+        new Date(a.createdAt)
+    )
+    .map((supplier) => supplier.toJSON());
 };
 
-
-/*
-|--------------------------------------------------------------------------
-| GET SUPPLIER BY ID
-|--------------------------------------------------------------------------
-*/
-
-const getSupplierById = async (supplierId) => {
-  if (!supplierId) {
-    const error = new Error("Supplier ID is required");
-    error.statusCode = 400;
-    throw error;
-  }
-
-  if (typeof Supplier.findById !== "function") {
-    throw new Error(
-      "Supplier model does not implement findById()"
-    );
-  }
-
-  const supplier = await Supplier.findById(supplierId);
-
-  if (!supplier) {
-    const error = new Error("Supplier not found");
-    error.statusCode = 404;
-    throw error;
-  }
-
-  return supplier;
+// --------------------------------------------------
+// Get supplier by ID
+// --------------------------------------------------
+const getSupplierById = async (id) => {
+  return findSupplierInstance(id).toJSON();
 };
 
-
-/*
-|--------------------------------------------------------------------------
-| UPDATE SUPPLIER
-|--------------------------------------------------------------------------
-*/
-
-const updateSupplier = async (supplierId, updateData) => {
-  const existingSupplier = await getSupplierById(supplierId);
-
-  validateSupplierData(updateData, true);
+// --------------------------------------------------
+// Update supplier
+// --------------------------------------------------
+const updateSupplier = async (id, data = {}) => {
+  const supplier = findSupplierInstance(id);
 
   if (
-    updateData.email !== undefined &&
-    normalizeEmail(updateData.email) !==
-      normalizeEmail(existingSupplier.email) &&
-    typeof Supplier.findByEmail === "function"
+    data.businessName !== undefined &&
+    (
+      typeof data.businessName !== "string" ||
+      !data.businessName.trim()
+    )
   ) {
-    const supplierWithEmail = await Supplier.findByEmail(
-      normalizeEmail(updateData.email)
+    throw createError(
+      "Supplier business name cannot be empty",
+      400
     );
+  }
 
-    if (
-      supplierWithEmail &&
-      supplierWithEmail.id !== supplierId
-    ) {
-      const error = new Error(
-        "A supplier with this email already exists"
+  if (data.email !== undefined) {
+    ensureUniqueEmail(data.email, id);
+    data.email = normalizeEmail(data.email);
+  }
+
+  if (data.slug !== undefined) {
+    const slug = normalizeSlug(data.slug);
+
+    if (!slug) {
+      throw createError(
+        "Supplier slug cannot be empty",
+        400
       );
-      error.statusCode = 409;
-      throw error;
     }
+
+    ensureUniqueSlug(slug, id);
+    data.slug = slug;
   }
 
-  const updatedSupplier = prepareSupplierData(
-    {
-      ...updateData,
-      updatedAt: new Date().toISOString(),
-    },
-    existingSupplier
-  );
-
-  if (typeof Supplier.update !== "function") {
-    throw new Error(
-      "Supplier model does not implement update()"
-    );
+  if (typeof data.businessName === "string") {
+    data.businessName = data.businessName.trim();
   }
 
-  const result = await Supplier.update(
-    supplierId,
-    updatedSupplier
-  );
+  supplier.update(data);
 
-  if (!result) {
-    const error = new Error("Supplier could not be updated");
-    error.statusCode = 500;
-    throw error;
-  }
+  suppliers.set(supplier.id, supplier);
 
-  return result;
+  return supplier.toJSON();
 };
 
+// --------------------------------------------------
+// Activate supplier
+// --------------------------------------------------
+const activateSupplier = async (id) => {
+  const supplier = findSupplierInstance(id);
 
-/*
-|--------------------------------------------------------------------------
-| CHANGE SUPPLIER STATUS
-|--------------------------------------------------------------------------
-*/
+  supplier.activate();
 
-const updateSupplierStatus = async (
-  supplierId,
-  status
-) => {
-  const normalizedStatus = normalizeStatus(status);
+  suppliers.set(supplier.id, supplier);
 
-  return updateSupplier(supplierId, {
-    status: normalizedStatus,
-  });
+  return supplier.toJSON();
 };
 
+// --------------------------------------------------
+// Suspend supplier
+// --------------------------------------------------
+const suspendSupplier = async (id) => {
+  const supplier = findSupplierInstance(id);
 
-/*
-|--------------------------------------------------------------------------
-| ACTIVATE SUPPLIER
-|--------------------------------------------------------------------------
-*/
+  supplier.suspend();
 
-const activateSupplier = async (supplierId) => {
-  return updateSupplier(supplierId, {
-    isActive: true,
-    status: "active",
-  });
+  suppliers.set(supplier.id, supplier);
+
+  return supplier.toJSON();
 };
 
+// --------------------------------------------------
+// Verify supplier
+// --------------------------------------------------
+const verifySupplier = async (id) => {
+  const supplier = findSupplierInstance(id);
 
-/*
-|--------------------------------------------------------------------------
-| DEACTIVATE SUPPLIER
-|--------------------------------------------------------------------------
-*/
+  supplier.verify();
 
-const deactivateSupplier = async (supplierId) => {
-  return updateSupplier(supplierId, {
-    isActive: false,
-    status: "inactive",
-  });
+  suppliers.set(supplier.id, supplier);
+
+  return supplier.toJSON();
 };
 
+// --------------------------------------------------
+// Delete supplier
+// --------------------------------------------------
+const deleteSupplier = async (id) => {
+  findSupplierInstance(id);
 
-/*
-|--------------------------------------------------------------------------
-| DELETE SUPPLIER
-|--------------------------------------------------------------------------
-*/
+  suppliers.delete(id);
 
-const deleteSupplier = async (supplierId) => {
-  await getSupplierById(supplierId);
-
-  if (typeof Supplier.remove !== "function") {
-    throw new Error(
-      "Supplier model does not implement remove()"
-    );
-  }
-
-  const deleted = await Supplier.remove(supplierId);
-
-  if (!deleted) {
-    const error = new Error("Supplier could not be deleted");
-    error.statusCode = 500;
-    throw error;
-  }
-
-  return {
-    success: true,
-    supplierId,
-  };
+  return true;
 };
 
-
-/*
-|--------------------------------------------------------------------------
-| SUPPLIER COMMERCIAL CALCULATION
-|--------------------------------------------------------------------------
-|
-| This gives us a reusable calculation for later product/order logic.
-|
-| Example:
-| Supplier price = €80
-| Customer selling price = €100
-| Platform margin = €20
-|--------------------------------------------------------------------------
-*/
-
+// --------------------------------------------------
+// Platform margin calculation
+// --------------------------------------------------
 const calculatePlatformMargin = (
   supplierPrice,
   sellingPrice
@@ -526,48 +305,42 @@ const calculatePlatformMargin = (
   const sale = Number(sellingPrice);
 
   if (
-    Number.isNaN(cost) ||
-    Number.isNaN(sale) ||
+    !Number.isFinite(cost) ||
+    !Number.isFinite(sale) ||
     cost < 0 ||
     sale < 0
   ) {
-    const error = new Error(
-      "Supplier price and selling price must be valid numbers"
+    throw createError(
+      "Supplier price and selling price must be valid numbers",
+      400
     );
-    error.statusCode = 400;
-    throw error;
   }
 
-  const margin = sale - cost;
+  const platformMargin = sale - cost;
 
   const marginPercentage =
     sale > 0
-      ? Number(((margin / sale) * 100).toFixed(2))
+      ? Number(
+          ((platformMargin / sale) * 100).toFixed(2)
+        )
       : 0;
 
   return {
     supplierPrice: cost,
     sellingPrice: sale,
-    platformMargin: margin,
+    platformMargin,
     marginPercentage,
   };
 };
-
-
-/*
-|--------------------------------------------------------------------------
-| EXPORTS
-|--------------------------------------------------------------------------
-*/
 
 module.exports = {
   createSupplier,
   getAllSuppliers,
   getSupplierById,
   updateSupplier,
-  updateSupplierStatus,
   activateSupplier,
-  deactivateSupplier,
+  suspendSupplier,
+  verifySupplier,
   deleteSupplier,
   calculatePlatformMargin,
 };
