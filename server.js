@@ -21,6 +21,8 @@ const restaurantRoutes = require("./Src/restaurants/routes/restaurant.routes");
 const reviewRoutes = require("./Src/reviews/routes/review.routes");
 const userRoutes = require("./Src/users/routes/user.routes");
 const supplierRoutes = require("./Src/suppliers/routes/supplier.routes");
+const productRoutes = require("./Src/supplier-commerce/products/routes/product.routes");
+const customerRoutes = require("./Src/supplier-commerce/customers/routes/customers.routes");
 // API Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/coupons", couponRoutes);
@@ -33,6 +35,8 @@ app.use("/api/restaurants", restaurantRoutes);
 app.use("/api/reviews", reviewRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/suppliers", supplierRoutes);
+app.use("/api/customers", customerRoutes);
+app.use("/api/products", productRoutes);
 // Home Route
 app.get("/", (req, res) => {
   res.status(200).json({
